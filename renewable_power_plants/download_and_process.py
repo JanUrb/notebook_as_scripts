@@ -1,11 +1,11 @@
-## remove markdown cells
+# remove markdown cells
 
 # coding: utf-8
 
 # In[3]:
 
 # importing all necessary Python libraries for this Script
-#%matplotlib inline
+# %matplotlib inline
 
 import os
 import zipfile
@@ -22,7 +22,7 @@ import logging
 logger = logging.getLogger('notebook')
 logger.setLevel('INFO')
 nb_root_logger = logging.getLogger()
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s- %(message)s',datefmt='%d %b %Y %H:%M:%S')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s- %(message)s', datefmt='%d %b %Y %H:%M:%S')
 # nb_root_logger.handlers[0].setFormatter(formatter)
 
 # Create input and output folders if they don't exist
@@ -52,7 +52,7 @@ def downloadandcache(url):
     filepath = "input/original_data/"+filename
     
     #check if file exists, if not download it
-    if os.path.exists(filepath) == False:
+    if not os.path.exists(filepath):
         print("Downloading file", filename)
         urllib.request.urlretrieve(url, filepath)
     else:
