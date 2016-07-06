@@ -1,3 +1,7 @@
 .idea
 input
 output
+.ipynb_checkpoints/
+input/
+raw_data.sqlite
+.vscode

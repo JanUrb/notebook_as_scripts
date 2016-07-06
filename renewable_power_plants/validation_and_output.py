@@ -2,7 +2,7 @@
 
 # coding: utf-8
 
-# In[3]:
+# In[ ]:
 
 # importing all necessary Python libraries for this Script
 #%matplotlib inline
@@ -36,7 +36,7 @@ os.makedirs('output', exist_ok=True)
 os.makedirs('output/datapackage_renewables', exist_ok=True)
 
 
-# In[4]:
+# In[ ]:
 
 # Read data from script Part 1
 renewables = pd.read_sql('SELECT* FROM raw_data_output',
@@ -67,52 +67,47 @@ renewables['comment'] = ""
 idx_date = renewables[(renewables['start_up_date'] <= '2014-12-31') 
                       & (renewables['source'] == 'BNetzA')].index
 
-renewables['comment'].loc[idx_date] = (renewables['comment'] 
-                            + "R_1, ")
+renewables.loc[idx_date,'comment'] = (renewables.loc[idx_date,'comment'] 
+                                      + "R_1, ")
 
 # Validation criteria (R_1) for source BNetzA_PV
 idx_date_pv = renewables[(renewables['start_up_date'] <= '2014-12-31') 
                     & (renewables['source'] == 'BNetzA_PV')].index
 
-renewables['comment'].loc[idx_date_pv] = (renewables['comment'] 
-                            + "R_1, ")
+renewables.loc[idx_date_pv,'comment'] = (renewables.loc[
+                                      idx_date_pv,'comment'] + "R_1, ")
 
 # Validation criteria (R_2)
 idx_date_null = renewables[(renewables['start_up_date'].isnull())].index
 
-renewables['comment'].loc[idx_date_null] = (renewables['comment'] 
-                            + "R_2, ")
+renewables.loc[idx_date_null,'comment'] = (renewables.loc[
+                                        idx_date_null,'comment'] + "R_2, ")
 
 # Validation criteria (R_3)
 idx_not_inst = renewables[(renewables['notification_reason']!= 'Inbetriebnahme')
                      & (renewables['source'] == 'BNetzA')].index
 
-renewables['comment'].loc[idx_not_inst] = (renewables['comment'] 
-                            + "R_3, ")
+renewables.loc[idx_not_inst,'comment'] = (renewables.loc[
+                                       idx_not_inst,'comment'] + "R_3, ")
 
 # Validation criteria (R_4)
 idx_pv_date = renewables[(renewables['start_up_date'] < '1975-01-01') 
-                   & (renewables['generation_type'] == 'solar')].index
+                   & (renewables['energy_source'] == 'solar')].index
 
-renewables['comment'].loc[idx_pv_date] = (renewables['comment'] 
-                            + "R_4, ")
+renewables.loc[idx_pv_date,'comment'] = (renewables.loc[
+                                      idx_pv_date,'comment'] + "R_4, ")
+
 # Validation criteria (R_5)
-idx_nv = renewables[renewables['generation_type'] == '#NV'].index
+idx_nv = renewables[renewables['energy_source'] == '#NV'].index
 
-renewables['comment'].loc[idx_nv] = (renewables['comment'] 
-                            + "R_5, ")
+renewables.loc[idx_nv,'comment'] = (renewables.loc[
+                                 idx_nv,'comment'] + "R_5, ")
 
 # Validation criteria (R_6)
-idx_gen = renewables[renewables.generation_type.isnull()].index
+idx_capacity = renewables[renewables.electrical_capacity <= 0.0].index
 
-renewables['comment'].loc[idx_gen] = (renewables['comment'] 
-                            + "R_6, ")
-
-# Validation criteria (R_7)
-idx_capacity = renewables[renewables.electrical_capacity.isnull()].index
-
-renewables['comment'].loc[idx_capacity] = (renewables['comment'] 
-                            + "R_7, ")
+renewables.loc[idx_capacity,'comment'] = (renewables.loc[
+                                       idx_capacity,'comment'] + "R_6, ")
 
 
 # In[ ]:
@@ -126,15 +121,12 @@ renewables.groupby(['comment','source'])['comment'].count()
 # Locate suspect entires
 idx_suspect = renewables[renewables.comment.str.len() >1].index
 
-# Show suspect entries
-renewables.loc[idx_suspect].groupby(['comment','source'])['comment'].count()
-
 
 # In[ ]:
 
-# Summarize capacity and generation type of suspect data
-renewables.loc[idx_suspect].groupby(['generation_type'])[
-                                   'electrical_capacity'].sum()/1000
+# Summarize electrical capacity per energy source of suspect data
+renewables.groupby(['comment','energy_source'])[
+                                        'electrical_capacity'].sum()/1000
 
 
 # In[ ]:
@@ -144,8 +136,8 @@ renewables_clean = renewables.drop(idx_suspect)
 
 # define column of data frame
 
-df_columns = ['start_up_date','electrical_capacity','generation_type',
-              'generation_subtype','thermal_capacity','postcode','city', 
+df_columns = ['start_up_date','electrical_capacity','energy_source',
+              'energy_source_subtype','thermal_capacity','postcode','city', 
               'address','tso','lon','lat','eeg_id','power_plant_id',
               'voltage_level','decommission_date','comment','source']
 
@@ -168,8 +160,8 @@ renewables_final.info()
 
 # In[ ]:
 
-# Group and summarize data frame by generation type ans installed capacity
-renewables_final.groupby(['generation_type'])['electrical_capacity'].sum()/1000
+# Group and summarize data frame by energy source ans installed capacity
+renewables_final.groupby(['energy_source'])['electrical_capacity'].sum()/1000
 
 
 # In[ ]:
@@ -201,31 +193,40 @@ stat.index = pd.to_datetime(stat.index,format="%Y").year
 
 # In[ ]:
 
-# Set generation types of interest
-generation_types = ['biomass','wind','solar','gas','geothermal','hydro']
+# Additional column for chosing energy sources for timeseries
+renewables_clean['temp_energy_source'] = renewables_clean['energy_source']
+
+# Add information if onshore or offshore for wind 
+idx_wind = renewables_clean[renewables_clean.energy_source == 'wind'].index
+renewables_clean.loc[idx_wind,'temp_energy_source'] = renewables_clean.loc[
+                                        idx_wind,'energy_source_subtype']
+
+# Set energy source of interest
+energy_sources = ['biomass','wind_onshore','wind_offshore','solar','gas',
+                  'geothermal','hydro']
 
 # Set date range of time series
-idx_stat = pd.date_range(start='1990-01-01', end='2015-01-01', freq='A')
+idx_stat = pd.date_range(start='1990-01-01', end='2016-01-01', freq='A')
 idx_ts = pd.date_range(start='2005-01-01', end='2016-01-31', freq='D')
 
 # Set range of time series as index
 data = pd.DataFrame(index=idx_ts)
 data_stat = pd.DataFrame(index=idx_stat)
 
-# Create cumulated time series per generation type for both time series
-for gtype in generation_types:
+# Create cumulated time series per energy source for both time series
+for gtype in energy_sources:
     
     temp = renewables_clean[['start_up_date','electrical_capacity'
-                           ]].loc[renewables_clean['generation_type'].isin(
+                           ]].loc[renewables_clean['temp_energy_source'].isin(
                                    [gtype])]
     
     temp_ts = temp.set_index('start_up_date')
     
-    # Create cumulated time series per generation type and year
+    # Create cumulated time series per energy_source and year
     data_stat['capacity_{0}_de'.format(gtype)]  = (
     temp_ts.resample('A', how='sum').cumsum().fillna(method='ffill')/1000)
     
-    # Create cumulated time series per generation type and day
+    # Create cumulated time series per energy_source and day
     data['capacity_{0}_de'.format(gtype)] = temp_ts.resample('D',
                                    how='sum').cumsum().fillna(method='ffill')/1000
     # Set index name
@@ -239,11 +240,16 @@ data_stat.index = pd.to_datetime(data_stat.index,format="%Y").year
 valuation = pd.concat([data_stat, stat], axis=1)
 valuation = valuation.fillna(0)
 
-# Calculate absolute deviation for each year and generation type
 
-valuation['absolute_wind'] =(valuation['capacity_wind_de']
-                                 -(valuation['bmwi_wind_onshore'] 
-                                 +valuation['bmwi_wind_offshore'])).fillna(0)
+# In[ ]:
+
+# Calculate absolute deviation for each year and energy source
+
+valuation['absolute_wind_onshore'] =(valuation['capacity_wind_onshore_de']
+                                 -valuation['bmwi_wind_onshore']).fillna(0)
+
+valuation['absolute_wind_offshore'] =(valuation['capacity_wind_offshore_de']
+                                 -valuation['bmwi_wind_offshore']).fillna(0)
 
 valuation['absolute_solar'] =(valuation['capacity_solar_de']
                                   -valuation['bmwi_solar']).fillna(0)
@@ -264,7 +270,8 @@ valuation['absolute_gas'] =(valuation['capacity_gas_de']
                                   +valuation['bmwi_landfill_gas'])).fillna(0)
 
 valuation['absolute_total'] =((valuation['capacity_biomass_de']
-                              +valuation['capacity_wind_de']
+                              +valuation['capacity_wind_onshore_de']
+                              +valuation['capacity_wind_offshore_de']
                               +valuation['capacity_solar_de']
                              +valuation['capacity_gas_de']
                              +valuation['capacity_geothermal_de']
@@ -275,9 +282,9 @@ valuation['absolute_total'] =((valuation['capacity_biomass_de']
 # In[ ]:
 
 #Plot settings for absolute deviation
-deviation_columns = ['absolute_wind','absolute_solar','absolute_hydro',  
-                  'absolute_biomass','absolute_gas', 'absolute_total',
-                  'absolute_geothermal']
+deviation_columns = ['absolute_wind_onshore','absolute_wind_offshore',
+                     'absolute_solar','absolute_hydro','absolute_biomass',
+                     'absolute_gas','absolute_total','absolute_geothermal']
 
 dataplot = valuation[deviation_columns]
 
@@ -287,7 +294,7 @@ deviation = Line(dataplot,
                  color = deviation_columns,
             title="Deviation between data set and BMWI statistic", 
             ylabel='Deviation in MW', 
-            xlabel='From 1990 till 2014',
+            xlabel='From 1990 till 2015',
             legend=True)
 
 
@@ -300,9 +307,11 @@ show(deviation)
 # In[ ]:
 
 # Relative deviation
-valuation['relative_wind'] =(valuation['absolute_wind']
-                            /(valuation['bmwi_wind_onshore'] 
-                             +valuation['bmwi_wind_offshore'])).fillna(0)
+valuation['relative_wind_onshore'] =(valuation['absolute_wind_onshore']
+                            /valuation['bmwi_wind_onshore']).fillna(0)
+
+valuation['relative_wind_offshore'] =(valuation['absolute_wind_offshore']
+                            /valuation['bmwi_wind_offshore']).fillna(0)
 
 valuation['relative_solar'] =(valuation['absolute_solar']
                             /(valuation['bmwi_solar'] )).fillna(0)
@@ -327,8 +336,9 @@ valuation['relative_total'] =(valuation['absolute_total']
 # In[ ]:
 
 # Plot settings relative deviation
-relative_column = ['relative_wind','relative_solar','relative_hydro',
-            'relative_biomass','relative_gas','relative_total']
+relative_column = ['relative_wind_onshore','relative_wind_offshore',
+                   'relative_solar','relative_hydro','relative_biomass',
+                   'relative_gas','relative_total']
 
 dataplot2 = valuation[relative_column]
 
@@ -338,7 +348,7 @@ relative = Line(dataplot2*100,
             color = relative_column,
             title="Deviation between data set and BMWI statistic", 
             ylabel='Relative difference in percent', 
-            xlabel='From 1990 till 2014',
+            xlabel='From 1990 till 2015',
             legend=True)
 
 
@@ -351,8 +361,8 @@ show(relative)
 # In[ ]:
 
 # write results as Excel file
-valuation.to_excel('validation_report.xlsx', sheet_name='Capacities_1990_2014'
-                   )
+valuation.to_excel('validation_report.xlsx', 
+                   sheet_name='Capacities_1990_2015')
 
 
 # In[ ]:
@@ -457,11 +467,11 @@ resources:
               type: number
               format: float
               unit: kW
-            - name: generation_type
-              description: Type of generation / energy source
+            - name: energy_source
+              description: Type of energy source / generation
               type: string
-            - name: generation_subtype
-              description: Subtype of generation / energy source
+            - name: energy_source_subtype
+              description: Subtype of energy source / generation
               type: string
             - name: thermal_capacity
               description: Installed thermal capacity in kW
@@ -514,9 +524,12 @@ resources:
             - name: capacity_biomass_de
               description: Cumulated biomass electrical capacity
               type: number
-            - name: capacity_wind_de
-              description: Cumulated wind capacity
-              type: number                 
+            - name: capacity_wind_onshore_de
+              description: Cumulated wind onshore capacity
+              type: number
+            - name: capacity_wind_offshore_de
+              description: Cumulated wind offshore capacity
+              type: number
             - name: capacity_solar_de
               description: Cumulated solar capacity
               type: number                
@@ -543,11 +556,11 @@ resources:
               type: number
               format: float
               unit: kW
-            - name: generation_type
-              description: Type of generation / energy source
+            - name: energy_source
+              description: Type of energy source / generation
               type: string
-            - name: generation_subtype
-              description: Subtype of generation / energy source
+            - name: energy_source_subtype
+              description: Subtype of energy source / generation
               type: string
             - name: thermal_capacity
               description: Installed thermal capacity in kW
@@ -611,7 +624,7 @@ maintainers:
       web: http://open-power-system-data.org/
 views: True
 openpowersystemdata-enable-listing: True
-opsd-jupyter-notebook-url: https://github.com/Open-Power-System-Data/datapackage_renewable_power_plants/blob/master/main.ipynb
+opsd-jupyter-notebook-url: https://github.com/Open-Power-System-Data/datapackage_renewable_power_plants/blob/2016-06-07/main.ipynb
 opsd-changes-to-last-version: Update of output data (latest version BNetzA-data, suspect data is not deleted any more but marked), corrected minor bugs of format and description
 """
 
